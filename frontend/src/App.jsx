@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Bell,
   ChevronRight,
@@ -13,11 +12,14 @@ import {
   Workflow,
   Zap,
 } from 'lucide-react'
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import GovernAILogo from './components/Logo.jsx'
-import { isSignedIn, signOut } from './auth.js'
+import ProtectedRoute from './components/ProtectedRoute.jsx'
+import { useAuth } from './context/AuthContext.jsx'
+import { logOut } from './auth.js'
 import Login from './pages/Login.jsx'
+import SignUp from './pages/SignUp.jsx'
 import Overview from './pages/Overview.jsx'
 import Reports from './pages/Reports.jsx'
 import SubmitUseCase from './pages/SubmitUseCase.jsx'
@@ -55,9 +57,30 @@ function pageTitle(pathname) {
   return 'GovernAI'
 }
 
-function AppShell({ onSignOut }) {
+function displayNameFor(user) {
+  if (!user) return 'Governance Team'
+  return user.displayName || user.email?.split('@')[0] || 'Governance Team'
+}
+
+function initialsFor(user) {
+  const name = displayNameFor(user)
+  const parts = name.trim().split(/[\s._-]+/).filter(Boolean)
+  const letters = parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)
+  return letters.toUpperCase()
+}
+
+function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
+
+  async function handleSignOut() {
+    try {
+      await logOut()
+    } finally {
+      navigate('/login', { replace: true })
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -109,12 +132,12 @@ function AppShell({ onSignOut }) {
         </div>
 
         <div className="sidebar-user-row">
-          <div className="sidebar-avatar">GA</div>
+          <div className="sidebar-avatar">{initialsFor(user)}</div>
           <div className="sidebar-user-text">
-            <div className="sidebar-user-name">Governance Team</div>
+            <div className="sidebar-user-name">{displayNameFor(user)}</div>
             <div className="sidebar-user-role">GRC Lead</div>
           </div>
-          <LogOut size={15} className="sidebar-signout" onClick={onSignOut} />
+          <LogOut size={15} className="sidebar-signout" onClick={handleSignOut} />
         </div>
       </aside>
 
@@ -142,35 +165,60 @@ function AppShell({ onSignOut }) {
         </header>
 
         <main className="app-main">
-          <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/submit" element={<SubmitUseCase />} />
-            <Route path="/pipeline-run" element={<PipelineRun />} />
-            <Route path="/policies" element={<Policies />} />
-            <Route path="/audit-log" element={<AuditLog />} />
-            <Route path="/use-cases/:id" element={<ReportDetail />} />
-          </Routes>
+          <Outlet />
         </main>
       </div>
     </div>
   )
 }
 
+/** Keeps signed-in users off the auth screens. */
+function PublicOnlyRoute({ children }) {
+  const { user, loading } = useAuth()
+
+  if (loading) return <div className="loading">Checking your session…</div>
+  if (user) return <Navigate to="/" replace />
+  return children
+}
+
 function App() {
-  const [signedIn, setSignedIn] = useState(isSignedIn())
-
-  if (!signedIn) {
-    return <Login onSignedIn={() => setSignedIn(true)} />
-  }
-
   return (
-    <AppShell
-      onSignOut={() => {
-        signOut()
-        setSignedIn(false)
-      }}
-    />
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <Login />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicOnlyRoute>
+            <SignUp />
+          </PublicOnlyRoute>
+        }
+      />
+
+      <Route
+        element={
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<Overview />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/submit" element={<SubmitUseCase />} />
+        <Route path="/pipeline-run" element={<PipelineRun />} />
+        <Route path="/policies" element={<Policies />} />
+        <Route path="/audit-log" element={<AuditLog />} />
+        <Route path="/use-cases/:id" element={<ReportDetail />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
