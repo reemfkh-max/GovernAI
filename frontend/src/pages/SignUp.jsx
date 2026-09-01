@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import AuthHero from '../components/AuthHero.jsx'
 import SsoButtons from '../components/SsoButtons.jsx'
@@ -13,6 +13,7 @@ import {
 
 export default function SignUp() {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -21,6 +22,9 @@ export default function SignUp() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [ssoPending, setSsoPending] = useState(null)
+
+  // Set when the visitor was sent here from a protected page via /login.
+  const redirectTo = location.state?.from?.pathname || '/'
 
   async function submit(event) {
     event.preventDefault()
@@ -40,7 +44,7 @@ export default function SignUp() {
       // Firebase signs the new account in immediately, so go straight to the
       // dashboard — ProtectedRoute will already see the session.
       await signUp(email, password, name)
-      navigate('/', { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       setError(authErrorMessage(err))
     } finally {
@@ -57,7 +61,7 @@ export default function SignUp() {
 
     try {
       await signInWithProvider(providerId)
-      navigate('/', { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       if (!isPopupDismissed(err)) setError(authErrorMessage(err))
     } finally {

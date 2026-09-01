@@ -106,7 +106,8 @@ export default function Login() {
           <SsoButtons busy={busy} pending={ssoPending} onSelect={signInWithSso} />
 
           <p className="login-alt">
-            No account yet? <Link to="/signup">Create one</Link>
+            {/* Carry the intended destination across to sign up. */}
+            No account yet? <Link to="/signup" state={location.state}>Create one</Link>
           </p>
         </form>
       </div>

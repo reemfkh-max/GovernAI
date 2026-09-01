@@ -172,12 +172,18 @@ function AppShell() {
   )
 }
 
-/** Keeps signed-in users off the auth screens. */
+/**
+ * Keeps signed-in users off the auth screens. It honours the same
+ * `state.from` that ProtectedRoute records, so whether this redirect or the
+ * auth page's own `navigate()` lands first, both go to the page the user
+ * originally asked for.
+ */
 function PublicOnlyRoute({ children }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
 
   if (loading) return <div className="loading">Checking your session…</div>
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to={location.state?.from?.pathname || '/'} replace />
   return children
 }
 

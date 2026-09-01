@@ -4,7 +4,7 @@
 // (see `.env.example`). Vite only exposes variables prefixed with `VITE_`, and
 // they are inlined at build time, so this file needs no runtime secrets.
 import { initializeApp, getApp, getApps } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { connectAuthEmulator, getAuth } from 'firebase/auth'
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -34,3 +34,11 @@ export const firebaseApp = isFirebaseConfigured
   : null
 
 export const auth = firebaseApp ? getAuth(firebaseApp) : null
+
+// Optional: point the SDK at a local Firebase Auth emulator for development
+// (`VITE_FIREBASE_AUTH_EMULATOR_HOST=http://127.0.0.1:9099`). Unset in
+// production — the app then talks to the real project.
+const emulatorHost = import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST
+if (auth && emulatorHost) {
+  connectAuthEmulator(auth, emulatorHost, { disableWarnings: true })
+}

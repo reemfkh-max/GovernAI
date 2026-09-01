@@ -54,6 +54,23 @@ they wanted once they sign in.
 Until `.env` is filled in the app still boots, and the sign-in screen explains
 what is missing instead of crashing.
 
+### Running against the Auth emulator
+
+To exercise sign-up/login without a real Firebase project, point the SDK at the
+local [Auth emulator](https://firebase.google.com/docs/emulator-suite):
+
+```bash
+npx firebase-tools emulators:start --only auth --project demo-governai
+```
+
+Then add to `frontend/.env` (any placeholder `VITE_FIREBASE_*` values will do):
+
+```
+VITE_FIREBASE_AUTH_EMULATOR_HOST=http://127.0.0.1:9099
+```
+
+Leave that variable unset and the app talks to the real project.
+
 ### Files
 
 | File | Role |
