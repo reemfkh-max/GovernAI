@@ -1,9 +1,21 @@
+import { getIdToken } from './auth.js'
+
 const BASE_URL = '/api'
+
+// Every request carries the signed-in user's Firebase ID token, which the
+// backend verifies with the Firebase Admin SDK.
+async function authHeaders(base = {}) {
+  const token = await getIdToken()
+  return token ? { ...base, Authorization: `Bearer ${token}` } : { ...base }
+}
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: await authHeaders({
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    }),
   })
 
   if (!res.ok) {
@@ -53,6 +65,7 @@ export async function extractDocument(file) {
 
   const res = await fetch(`${BASE_URL}/documents/extract`, {
     method: 'POST',
+    headers: await authHeaders(),
     body: formData,
   })
 
@@ -124,4 +137,13 @@ export function getAuditLog(useCaseId) {
     : ''
 
   return request(`/audit-log${query}`)
+}
+/* =========================================================
+   IDENTITY
+========================================================= */
+
+// Echoes back the identity the backend derived from the ID token — useful to
+// confirm frontend and backend agree on who is signed in.
+export function whoami() {
+  return request('/auth/me')
 }

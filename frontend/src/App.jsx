@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Bell,
   ChevronRight,
@@ -16,7 +16,7 @@ import {
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import GovernAILogo from './components/Logo.jsx'
-import { isSignedIn, signOut } from './auth.js'
+import { signOut, watchAuth } from './auth.js'
 import Login from './pages/Login.jsx'
 import Overview from './pages/Overview.jsx'
 import Reports from './pages/Reports.jsx'
@@ -55,7 +55,19 @@ function pageTitle(pathname) {
   return 'GovernAI'
 }
 
-function AppShell({ onSignOut }) {
+function userLabel(user) {
+  return user?.displayName || user?.email || 'Governance Team'
+}
+
+function userInitials(user) {
+  const source = user?.displayName || user?.email || 'Governance AI'
+  const parts = source.replace(/@.*$/, '').split(/[\s._-]+/).filter(Boolean)
+  const initials = parts.slice(0, 2).map((part) => part[0]).join('')
+  return (initials || 'GA').toUpperCase()
+}
+
+
+function AppShell({ user, onSignOut }) {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -109,9 +121,9 @@ function AppShell({ onSignOut }) {
         </div>
 
         <div className="sidebar-user-row">
-          <div className="sidebar-avatar">GA</div>
+          <div className="sidebar-avatar">{userInitials(user)}</div>
           <div className="sidebar-user-text">
-            <div className="sidebar-user-name">Governance Team</div>
+            <div className="sidebar-user-name">{userLabel(user)}</div>
             <div className="sidebar-user-role">GRC Lead</div>
           </div>
           <LogOut size={15} className="sidebar-signout" onClick={onSignOut} />
@@ -158,20 +170,21 @@ function AppShell({ onSignOut }) {
 }
 
 function App() {
-  const [signedIn, setSignedIn] = useState(isSignedIn())
+  // null = signed out, undefined = still resolving the Firebase session.
+  const [user, setUser] = useState(undefined)
 
-  if (!signedIn) {
-    return <Login onSignedIn={() => setSignedIn(true)} />
+  useEffect(() => watchAuth(setUser), [])
+
+  if (user === undefined) {
+    return <div className="app-booting">Loading…</div>
   }
 
-  return (
-    <AppShell
-      onSignOut={() => {
-        signOut()
-        setSignedIn(false)
-      }}
-    />
-  )
+  if (user === null) {
+    // In demo mode watchAuth has no listener, so Login reports success itself.
+    return <Login onSignedIn={() => setUser((current) => current ?? { uid: 'demo-user' })} />
+  }
+
+  return <AppShell user={user} onSignOut={() => signOut().then(() => setUser(null))} />
 }
 
 export default App

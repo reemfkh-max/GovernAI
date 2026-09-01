@@ -65,6 +65,8 @@ app/
   models.py              # pydantic models (AIUseCase, GovernanceReport, ...)
   api.py                  # FastAPI app
   cli.py                   # command-line interface
+  firebase.py            # Firebase Admin SDK init (auth + Firestore)
+  auth.py                 # ID-token verification -> AuthenticatedUser
 data/
   policies.yaml          # organizational AI governance policies
   risk_rules.yaml         # risk-scoring rules
@@ -74,7 +76,13 @@ examples/
   sample_use_case.json    # example high-risk AI use case for a demo run
 frontend/                 # React + Vite UI (submit, list, view, approve reports)
 tests/                    # pytest suite (LLM calls are mocked, no API key needed)
+firebase.json             # Firebase CLI config (Firestore rules + indexes)
+firestore.rules            # deny-all for browser clients; the backend uses the Admin SDK
 ```
+
+Reports and the audit log live in `data/` by default; with Firebase
+configured they are written to the Firestore collections
+`governance_reports` and `audit_log` instead.
 
 ## Setup
 
@@ -93,7 +101,55 @@ To also run the web UI:
 ```bash
 cd frontend
 npm install
+cp .env.example .env.local   # optional: Firebase web config
 ```
+
+### Firebase (optional): real sign-in + Firestore storage
+
+Without Firebase, GovernAI stores reports/audit entries as local files and
+leaves the API unauthenticated — fine for a local demo, and what the test
+suite uses. Wiring Firebase in gives you real user accounts and shared,
+durable storage.
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. **Authentication → Sign-in method**: enable *Email/Password* and *Google*.
+3. **Firestore Database → Create database** (production mode).
+4. **Project settings → General → Your apps → Web app**: copy the config
+   values into `frontend/.env.local` (see `frontend/.env.example`).
+5. **Project settings → Service accounts → Generate new private key**: save
+   the JSON outside version control and point the backend at it in `.env`:
+
+   ```bash
+   FIREBASE_PROJECT_ID=your-project
+   FIREBASE_CREDENTIALS_FILE=./serviceAccountKey.json
+   GOVERNAI_REQUIRE_AUTH=true      # reject requests without a valid ID token
+   ```
+
+6. Deploy the Firestore security rules (they deny all direct browser access —
+   only the backend's Admin SDK writes governance data):
+
+   ```bash
+   npx firebase-tools deploy --only firestore:rules
+   ```
+
+How it fits together:
+
+| Piece | Where |
+|---|---|
+| Sign-in (email/password, Google), session persistence | `frontend/src/auth.js`, `frontend/src/firebase.js` |
+| ID token attached to every API call | `frontend/src/api.js` |
+| Token verification → `AuthenticatedUser` | `app/auth.py` |
+| Admin SDK init, Firestore client | `app/firebase.py` |
+| Reports in the `governance_reports` collection | `app/reports.py` |
+| Audit entries in the `audit_log` collection | `app/tools/audit_log.py` |
+
+Relevant environment variables (all optional, see `.env.example`):
+`FIREBASE_PROJECT_ID`, `FIREBASE_CREDENTIALS_FILE` /
+`FIREBASE_CREDENTIALS_JSON`, `GOVERNAI_USE_FIRESTORE`,
+`GOVERNAI_REQUIRE_AUTH`, `GOVERNAI_CORS_ORIGINS`.
+
+Human approvals recorded through the API are attributed to the verified
+signed-in user, not to whatever the client puts in the `approver` field.
 
 ## Usage
 
@@ -131,6 +187,7 @@ python main.py
 | GET | `/use-cases/{id}` | Fetch one report |
 | POST | `/use-cases/{id}/approve` | Record a human approve/reject decision |
 | GET | `/audit-log?use_case_id=...` | Read the audit trail |
+| GET | `/auth/me` | Identity behind the caller's Firebase ID token |
 | GET | `/policies` | List the policy repository |
 | GET | `/risk-rules` | List the risk-scoring rules |
 
@@ -156,5 +213,5 @@ from the browser instead of the CLI or raw API calls. See
 pytest
 ```
 
-The test suite mocks the OpenAI client, so it runs without a real API
-key or network access.
+The test suite mocks the OpenAI client and Firebase, so it runs without a
+real API key, a Firebase project, or network access.

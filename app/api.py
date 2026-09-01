@@ -1,11 +1,14 @@
 """FastAPI application exposing the governance workflow over HTTP."""
 
+import os
 from typing import List, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app import config, firebase
+from app.auth import AuthenticatedUser, require_user
 from app.llm_client import ConfigurationError
 from app.models import AIUseCase, AuditEntry, GovernanceReport
 from app.orchestrator import (
@@ -31,9 +34,17 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Extra origins (e.g. a Firebase Hosting domain) can be added with
+# GOVERNAI_CORS_ORIGINS as a comma-separated list.
+CORS_ORIGINS = ["http://localhost:5173"] + [
+    origin.strip()
+    for origin in os.environ.get("GOVERNAI_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -51,7 +62,9 @@ class UseCaseSubmission(BaseModel):
 
 class ApprovalRequest(BaseModel):
     approved: bool
-    approver: str
+    # Optional: when the caller is signed in with Firebase, their verified
+    # identity is used instead of whatever the client sends.
+    approver: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -76,7 +89,20 @@ class RiskRuleSubmission(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "firebase": firebase.is_enabled(),
+        "firestore": firebase.firestore_enabled(),
+        "auth_required": config.REQUIRE_AUTH,
+    }
+
+
+@app.get("/auth/me")
+def whoami(user: Optional[AuthenticatedUser] = Depends(require_user)) -> dict:
+    """Echo back the identity behind the caller's Firebase ID token."""
+    if user is None:
+        return {"authenticated": False}
+    return {"authenticated": True, **user.model_dump()}
 
 
 # =========================================================
@@ -84,12 +110,15 @@ def health() -> dict:
 # =========================================================
 
 @app.get("/policies")
-def list_policies() -> list:
+def list_policies(user: Optional[AuthenticatedUser] = Depends(require_user)) -> list:
     return get_policies()
 
 
 @app.post("/policies")
-def create_policy(payload: PolicySubmission) -> dict:
+def create_policy(
+    payload: PolicySubmission,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
+) -> dict:
     policy = payload.model_dump()
 
     try:
@@ -106,12 +135,15 @@ def create_policy(payload: PolicySubmission) -> dict:
 # =========================================================
 
 @app.get("/risk-rules")
-def list_risk_rules() -> list:
+def list_risk_rules(user: Optional[AuthenticatedUser] = Depends(require_user)) -> list:
     return get_risk_rules()
 
 
 @app.post("/risk-rules")
-def create_risk_rule(payload: RiskRuleSubmission) -> dict:
+def create_risk_rule(
+    payload: RiskRuleSubmission,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
+) -> dict:
     rule = payload.model_dump()
 
     try:
@@ -133,6 +165,7 @@ def create_risk_rule(payload: RiskRuleSubmission) -> dict:
 )
 def submit_use_case(
     payload: UseCaseSubmission,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
 ) -> GovernanceReport:
     use_case = AIUseCase(**payload.model_dump())
 
@@ -151,7 +184,9 @@ def submit_use_case(
     "/use-cases",
     response_model=List[GovernanceReport],
 )
-def get_all_reports() -> List[GovernanceReport]:
+def get_all_reports(
+    user: Optional[AuthenticatedUser] = Depends(require_user),
+) -> List[GovernanceReport]:
     return list_reports()
 
 
@@ -161,6 +196,7 @@ def get_all_reports() -> List[GovernanceReport]:
 )
 def get_report(
     use_case_id: str,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
 ) -> GovernanceReport:
     report = load_report(use_case_id)
 
@@ -180,14 +216,23 @@ def get_report(
 def approve_use_case(
     use_case_id: str,
     payload: ApprovalRequest,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
 ) -> GovernanceReport:
+    approver = user.actor if user is not None else payload.approver
+
+    if not approver:
+        raise HTTPException(
+            status_code=422,
+            detail="An approver is required (sign in, or send an approver field).",
+        )
+
     orchestrator = GovernanceOrchestrator()
 
     try:
         return orchestrator.apply_human_decision(
             use_case_id,
             approved=payload.approved,
-            approver=payload.approver,
+            approver=approver,
             notes=payload.notes,
         )
 
@@ -209,7 +254,10 @@ def approve_use_case(
 # =========================================================
 
 @app.post("/documents/extract")
-async def extract_document(file: UploadFile = File(...)) -> dict:
+async def extract_document(
+    file: UploadFile = File(...),
+    user: Optional[AuthenticatedUser] = Depends(require_user),
+) -> dict:
     content = await file.read()
 
     if len(content) > MAX_FILE_SIZE:
@@ -244,5 +292,6 @@ async def extract_document(file: UploadFile = File(...)) -> dict:
 )
 def audit_log(
     use_case_id: Optional[str] = None,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
 ) -> List[AuditEntry]:
     return get_audit_log(use_case_id)

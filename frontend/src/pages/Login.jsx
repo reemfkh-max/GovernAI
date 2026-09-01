@@ -2,16 +2,47 @@ import { useState } from 'react'
 import { Building2, Gavel, Scale, ShieldCheck } from 'lucide-react'
 
 import GovernAILogo from '../components/Logo.jsx'
-import { SIGNED_IN_KEY } from '../auth.js'
+import {
+  authErrorMessage,
+  firebaseEnabled,
+  registerWithEmail,
+  signInWithEmail,
+  signInWithGoogle,
+} from '../auth.js'
 
 export default function Login({ onSignedIn }) {
-  const [email, setEmail] = useState('lujain@acme.com')
-  const [password, setPassword] = useState('governai')
+  const [email, setEmail] = useState(firebaseEnabled ? '' : 'lujain@acme.com')
+  const [password, setPassword] = useState(firebaseEnabled ? '' : 'governai')
+  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  function continueIn(event) {
+  // Runs the given Firebase call, surfacing errors on the form.
+  async function run(action) {
+    setBusy(true)
+    setError('')
+
+    try {
+      await action()
+      onSignedIn?.()
+    } catch (err) {
+      setError(authErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function submitForm(event) {
     event?.preventDefault()
-    localStorage.setItem(SIGNED_IN_KEY, '1')
-    onSignedIn?.()
+    run(() =>
+      mode === 'signup'
+        ? registerWithEmail(email, password)
+        : signInWithEmail(email, password)
+    )
+  }
+
+  function continueWithGoogle() {
+    run(signInWithGoogle)
   }
 
   return (
@@ -56,14 +87,16 @@ export default function Login({ onSignedIn }) {
       </div>
 
       <div className="login-panel">
-        <form className="login-form" onSubmit={continueIn}>
-          <h2>Sign in</h2>
+        <form className="login-form" onSubmit={submitForm}>
+          <h2>{mode === 'signup' ? 'Create account' : 'Sign in'}</h2>
           <p className="login-form-sub">Governance, risk &amp; compliance workspace</p>
 
           <div className="field">
             <label htmlFor="login-email">Work email</label>
             <input
               id="login-email"
+              type="email"
+              autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -74,14 +107,32 @@ export default function Login({ onSignedIn }) {
             <input
               id="login-password"
               type="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
 
-          <button className="login-submit" type="submit">
-            Sign in
+          {error && <div className="login-error">{error}</div>}
+
+          <button className="login-submit" type="submit" disabled={busy}>
+            {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
           </button>
+
+          {firebaseEnabled && (
+            <button
+              className="login-switch"
+              type="button"
+              onClick={() => {
+                setMode(mode === 'signup' ? 'signin' : 'signup')
+                setError('')
+              }}
+            >
+              {mode === 'signup'
+                ? 'Already have an account? Sign in'
+                : 'New here? Create an account'}
+            </button>
+          )}
 
           <div className="login-divider">
             <span />
@@ -89,10 +140,23 @@ export default function Login({ onSignedIn }) {
             <span />
           </div>
 
-          <button className="login-sso" type="button" onClick={continueIn}>
+          <button
+            className="login-sso"
+            type="button"
+            onClick={continueWithGoogle}
+            disabled={busy}
+          >
             <Building2 size={15} />
-            Continue with SSO
+            Continue with Google
           </button>
+
+          {!firebaseEnabled && (
+            <p className="login-demo-note">
+              Demo mode — Firebase is not configured, so any credentials get you
+              in. Add the VITE_FIREBASE_* variables in frontend/.env.local to
+              enable real sign-in.
+            </p>
+          )}
         </form>
       </div>
     </div>

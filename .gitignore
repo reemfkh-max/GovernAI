@@ -4,7 +4,14 @@ __pycache__/
 .venv-wsl/
 venv/
 .env
+.env.local
 .pytest_cache/
+
+# Firebase service-account keys and CLI state — never commit these
+*serviceAccount*.json
+firebase-adminsdk*.json
+.firebase/
+firebase-debug.log
 
 # Frontend (React + Vite)
 frontend/node_modules/

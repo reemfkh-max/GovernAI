@@ -28,7 +28,12 @@ def _patch_agents(monkeypatch, decision: Decision):
 def test_health():
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    body = resp.json()
+    assert body["status"] == "ok"
+    # Firebase is not configured in the test environment.
+    assert body["firebase"] is False
+    assert body["firestore"] is False
+    assert body["auth_required"] is False
 
 
 def test_list_policies_and_risk_rules():
