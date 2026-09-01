@@ -769,9 +769,18 @@
   transition: 0.15s ease;
 }
 
-.login-sso:hover {
+.login-sso:hover:not(:disabled) {
   border-color: var(--violet);
   background: rgba(139, 92, 246, 0.08);
+}
+
+.login-sso:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-sso + .login-sso {
+  margin-top: 8px;
 }
 
 .login-submit:disabled {

@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import AuthHero from '../components/AuthHero.jsx'
-import { authErrorMessage, isFirebaseConfigured, signUp } from '../auth.js'
+import SsoButtons from '../components/SsoButtons.jsx'
+import {
+  authErrorMessage,
+  isFirebaseConfigured,
+  isPopupDismissed,
+  signInWithProvider,
+  signUp,
+} from '../auth.js'
 
 export default function SignUp() {
   const navigate = useNavigate()
@@ -13,6 +20,7 @@ export default function SignUp() {
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [ssoPending, setSsoPending] = useState(null)
 
   async function submit(event) {
     event.preventDefault()
@@ -37,6 +45,24 @@ export default function SignUp() {
       setError(authErrorMessage(err))
     } finally {
       setBusy(false)
+    }
+  }
+
+  // The provider pop-up creates the account on first use, so the same call
+  // serves both "sign up" and "sign in".
+  async function continueWithSso(providerId) {
+    setError(null)
+    setBusy(true)
+    setSsoPending(providerId)
+
+    try {
+      await signInWithProvider(providerId)
+      navigate('/', { replace: true })
+    } catch (err) {
+      if (!isPopupDismissed(err)) setError(authErrorMessage(err))
+    } finally {
+      setBusy(false)
+      setSsoPending(null)
     }
   }
 
@@ -109,6 +135,8 @@ export default function SignUp() {
           <button className="login-submit" type="submit" disabled={busy}>
             {busy ? 'Creating account…' : 'Create account'}
           </button>
+
+          <SsoButtons busy={busy} pending={ssoPending} onSelect={continueWithSso} />
 
           <p className="login-alt">
             Already have an account? <Link to="/login">Sign in</Link>

@@ -95,8 +95,9 @@ cd frontend
 npm install
 cp .env.example .env
 # edit frontend/.env and set the VITE_FIREBASE_* values from your Firebase
-# project (Project settings -> Your apps -> Web app), then enable
-# Authentication -> Sign-in method -> Email/Password in the Firebase console
+# project (Project settings -> Your apps -> Web app), then enable the
+# Email/Password, Google and Microsoft providers under
+# Authentication -> Sign-in method in the Firebase console
 ```
 
 ## Usage
@@ -150,7 +151,8 @@ npm run dev
 # -> http://localhost:5173
 ```
 
-Sign up or sign in with email/password (Firebase Authentication), then submit
+Sign up or sign in with email/password or Google/Microsoft SSO (Firebase
+Authentication), then submit
 a use case, browse reports, and record human approve/reject decisions from the
 browser instead of the CLI or raw API calls. See
 [frontend/README.md](frontend/README.md) for details.

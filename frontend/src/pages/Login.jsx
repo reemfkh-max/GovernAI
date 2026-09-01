@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import { Building2 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import AuthHero from '../components/AuthHero.jsx'
-import { authErrorMessage, isFirebaseConfigured, logIn } from '../auth.js'
+import SsoButtons from '../components/SsoButtons.jsx'
+import {
+  authErrorMessage,
+  isFirebaseConfigured,
+  isPopupDismissed,
+  logIn,
+  signInWithProvider,
+} from '../auth.js'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -13,6 +19,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [ssoPending, setSsoPending] = useState(null)
 
   // Where the user was headed before ProtectedRoute bounced them here.
   const redirectTo = location.state?.from?.pathname || '/'
@@ -29,6 +36,23 @@ export default function Login() {
       setError(authErrorMessage(err))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function signInWithSso(providerId) {
+    setError(null)
+    setBusy(true)
+    setSsoPending(providerId)
+
+    try {
+      await signInWithProvider(providerId)
+      navigate(redirectTo, { replace: true })
+    } catch (err) {
+      // Closing the provider pop-up is a cancellation, not an error.
+      if (!isPopupDismissed(err)) setError(authErrorMessage(err))
+    } finally {
+      setBusy(false)
+      setSsoPending(null)
     }
   }
 
@@ -79,20 +103,7 @@ export default function Login() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <div className="login-divider">
-            <span />
-            <em>or</em>
-            <span />
-          </div>
-
-          <button
-            className="login-sso"
-            type="button"
-            onClick={() => setError('SSO is not enabled yet — sign in with your work email and password.')}
-          >
-            <Building2 size={15} />
-            Continue with SSO
-          </button>
+          <SsoButtons busy={busy} pending={ssoPending} onSelect={signInWithSso} />
 
           <p className="login-alt">
             No account yet? <Link to="/signup">Create one</Link>
