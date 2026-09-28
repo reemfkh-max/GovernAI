@@ -73,6 +73,7 @@ data/
 examples/
   sample_use_case.json    # example high-risk AI use case for a demo run
 frontend/                 # React + Vite UI (submit, list, view, approve reports)
+evals/                    # evaluation harness: frozen cases, evaluator, runner (python -m evals)
 tests/                    # pytest suite (LLM calls are mocked, no API key needed)
 ```
 
@@ -149,6 +150,47 @@ npm run dev
 Submit a use case, browse reports, and record human approve/reject decisions
 from the browser instead of the CLI or raw API calls. See
 [frontend/README.md](frontend/README.md) for details.
+
+## Evaluation
+
+`evals/` is an automated evaluation harness for the agent pipeline:
+
+```
+agents -> trace -> checks -> diagnosis -> change -> regression + holdout -> release decision
+```
+
+- **Frozen suite** (`evals/cases.py`): 10 risk-based AI use cases (Easy/Medium/Hard,
+  5 marked critical) covering routine low risk, autonomous credit and hiring
+  decisions, missing context, prompt injection hidden in documentation, PII,
+  privileged system access, unvetted vendors, health data, and an
+  already-well-governed system that should *not* be blocked. There is also one
+  unseen holdout case. Expected behavior is fixed before results are seen; add
+  cases, don't edit them to make a run pass.
+- **Checks** (`evals/evaluator.py`): only observable behavior is scored. That means
+  the risk level and score range, score/level consistency with the scoring
+  bands, compliance status, required policy violations, policy IDs that exist
+  in the repository, the decision, a safety invariant (never approve a
+  non-compliant high/critical case), remediation conditions, required and
+  forbidden rationale content (negation-aware, plus hard-forbidden phrases
+  for injection leaks), required tool calls per agent, and a tool-call budget.
+- **Metrics and gate**: run pass rate, stable-case rate across repeats, critical
+  pass rate, per-category pass rate, latency and tokens. The release gate is
+  `run >= 90%`, `stable >= 90%`, `critical = 100%`, on both the suite and the holdout.
+- **Diagnosis**: a failure matrix (check -> cases) plus a per-case diagnosis with
+  evidence, likely cause and proposed change.
+
+```bash
+python -m evals --mode replay                 # no API key: deterministic fixtures
+python -m evals --mode live --repeats 3 --holdout --label baseline
+# ...change a prompt or tool, then compare on the same frozen suite:
+python -m evals --mode live --repeats 3 --holdout --label prompt-v2 \
+    --compare data/evals/baseline-<timestamp>.json
+```
+
+Results are written to `data/evals/<label>-<timestamp>.json`. Live mode calls
+the agents directly and doesn't write reports or audit-log entries. Replay
+mode uses hand-built fixtures that contain deliberate failures, so it only
+tests the evaluator. It can never authorize a release.
 
 ## Tests
 

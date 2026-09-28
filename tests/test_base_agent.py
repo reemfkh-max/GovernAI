@@ -107,3 +107,19 @@ def test_agent_raises_after_max_tool_iterations(monkeypatch):
     )
     with pytest.raises(AgentError):
         agent.run("go", EchoResult, max_tool_iterations=3)
+
+
+def test_agent_records_tool_calls_for_evaluation(monkeypatch):
+    responses = [
+        _completion(tool_calls=[_tool_call("call_1", "echo_tool", {"x": 1})]),
+        _completion(content=json.dumps({"value": 1, "note": "ok"})),
+    ]
+    monkeypatch.setattr("app.agents.base.get_client", lambda: FakeClient(responses))
+
+    agent = BaseAgent(
+        system_prompt="test agent",
+        tools=[{"type": "function", "function": {"name": "echo_tool", "parameters": {}}}],
+        tool_functions={"echo_tool": lambda x: {"x": x}},
+    )
+    agent.run("go", EchoResult)
+    assert agent.last_tool_calls == [{"tool": "echo_tool", "arguments": {"x": 1}, "ok": True}]

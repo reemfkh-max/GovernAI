@@ -17,3 +17,4 @@ data/audit_log.jsonl
 
 # Local reference material (not project code)
 /*.pdf
+data/evals/

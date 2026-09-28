@@ -57,6 +57,10 @@ class BaseAgent:
         self.tools = tools or []
         self.tool_functions = tool_functions or {}
         self.model = model or config.OPENAI_MODEL
+        # Observable record of the most recent run (tool calls + token usage),
+        # used by the evaluation harness in evals/.
+        self.last_tool_calls: List[Dict[str, Any]] = []
+        self.last_total_tokens: int = 0
 
     def run(
         self,
@@ -66,6 +70,8 @@ class BaseAgent:
     ) -> ResponseModel:
         max_tool_iterations = max_tool_iterations or config.MAX_TOOL_ITERATIONS
         client = get_client()
+        self.last_tool_calls = []
+        self.last_total_tokens = 0
 
         schema_hint = (
             "When you are ready to give your final answer, respond with ONLY a "
@@ -84,6 +90,8 @@ class BaseAgent:
                 kwargs["tool_choice"] = "auto"
 
             completion = client.chat.completions.create(**kwargs)
+            usage = getattr(completion, "usage", None)
+            self.last_total_tokens += getattr(usage, "total_tokens", 0) or 0
             message = completion.choices[0].message
             tool_calls = getattr(message, "tool_calls", None)
 
@@ -118,6 +126,13 @@ class BaseAgent:
                             result = fn(**args)
                         except Exception as exc:  # tool failures shouldn't crash the agent
                             result = {"error": str(exc)}
+                    self.last_tool_calls.append(
+                        {
+                            "tool": tc.function.name,
+                            "arguments": args,
+                            "ok": not (isinstance(result, dict) and "error" in result),
+                        }
+                    )
                     messages.append(
                         {
                             "role": "tool",
