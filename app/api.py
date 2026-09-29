@@ -26,6 +26,7 @@ from app.tools.document_extract import (
 )
 from app.tools.policy_repository import add_policy, get_policies
 from app.tools.risk_rules import add_risk_rule, get_risk_rules
+from app.users import ProfileUpdate, UserProfile, UsernameTakenError, get_profile, save_profile
 
 
 app = FastAPI(
@@ -103,6 +104,39 @@ def whoami(user: Optional[AuthenticatedUser] = Depends(require_user)) -> dict:
     if user is None:
         return {"authenticated": False}
     return {"authenticated": True, **user.model_dump()}
+
+
+# =========================================================
+# USER PROFILES
+# =========================================================
+
+def _signed_in(user: Optional[AuthenticatedUser]) -> AuthenticatedUser:
+    """Profiles are keyed by uid, so they always need a verified caller."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in to manage your profile")
+    return user
+
+
+@app.get("/users/me", response_model=UserProfile)
+def read_my_profile(
+    user: Optional[AuthenticatedUser] = Depends(require_user),
+) -> UserProfile:
+    profile = get_profile(_signed_in(user).uid)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not set up yet")
+    return profile
+
+
+@app.put("/users/me", response_model=UserProfile)
+def update_my_profile(
+    payload: ProfileUpdate,
+    user: Optional[AuthenticatedUser] = Depends(require_user),
+) -> UserProfile:
+    user = _signed_in(user)
+    try:
+        return save_profile(user.uid, user.email, payload)
+    except UsernameTakenError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 # =========================================================

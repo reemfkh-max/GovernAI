@@ -27,6 +27,7 @@ REPORTS_DIR = DATA_DIR / "reports"
 POLICIES_FILE = DATA_DIR / "policies.yaml"
 RISK_RULES_FILE = DATA_DIR / "risk_rules.yaml"
 AUDIT_LOG_FILE = DATA_DIR / "audit_log.jsonl"
+USERS_FILE = DATA_DIR / "users.json"
 
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -51,6 +52,7 @@ FIRESTORE_REPORTS_COLLECTION = os.environ.get(
     "FIRESTORE_REPORTS_COLLECTION", "governance_reports"
 )
 FIRESTORE_AUDIT_COLLECTION = os.environ.get("FIRESTORE_AUDIT_COLLECTION", "audit_log")
+FIRESTORE_USERS_COLLECTION = os.environ.get("FIRESTORE_USERS_COLLECTION", "users")
 
 # Reject API requests that carry no valid Firebase ID token.
 REQUIRE_AUTH = _flag("GOVERNAI_REQUIRE_AUTH", default=False)

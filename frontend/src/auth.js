@@ -14,6 +14,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
+  updateProfile,
 } from 'firebase/auth'
 
 import { auth, firebaseEnabled } from './firebase.js'
@@ -56,12 +57,15 @@ export async function signInWithEmail(email, password) {
   await signInWithEmailAndPassword(auth, email, password)
 }
 
-export async function registerWithEmail(email, password) {
+export async function registerWithEmail(email, password, displayName) {
   if (!firebaseEnabled) {
     localStorage.setItem(SIGNED_IN_KEY, '1')
     return
   }
-  await createUserWithEmailAndPassword(auth, email, password)
+  const credential = await createUserWithEmailAndPassword(auth, email, password)
+  if (displayName) {
+    await updateProfile(credential.user, { displayName })
+  }
 }
 
 export async function signInWithGoogle() {

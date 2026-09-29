@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Building2, Gavel, Scale, ShieldCheck } from 'lucide-react'
 
 import GovernAILogo from '../components/Logo.jsx'
+import ProfileFields from '../components/ProfileFields.jsx'
+import { saveMyProfile } from '../api.js'
 import {
   authErrorMessage,
   firebaseEnabled,
@@ -9,11 +11,14 @@ import {
   signInWithEmail,
   signInWithGoogle,
 } from '../auth.js'
+import { trackSignUp, validateProfile } from '../profile.js'
 
 export default function Login({ onSignedIn }) {
   const [email, setEmail] = useState(firebaseEnabled ? '' : 'lujain@acme.com')
   const [password, setPassword] = useState(firebaseEnabled ? '' : 'governai')
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [username, setUsername] = useState('')
+  const [jobLevel, setJobLevel] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -34,10 +39,24 @@ export default function Login({ onSignedIn }) {
 
   function submitForm(event) {
     event?.preventDefault()
+    if (mode === 'signin') {
+      run(() => signInWithEmail(email, password))
+      return
+    }
+
+    const invalid = validateProfile({ username, jobLevel })
+    if (invalid) {
+      setError(invalid)
+      return
+    }
+
     run(() =>
-      mode === 'signup'
-        ? registerWithEmail(email, password)
-        : signInWithEmail(email, password)
+      trackSignUp(
+        (async () => {
+          await registerWithEmail(email, password, username.trim())
+          return saveMyProfile({ username: username.trim(), jobLevel })
+        })()
+      )
     )
   }
 
@@ -90,6 +109,15 @@ export default function Login({ onSignedIn }) {
         <form className="login-form" onSubmit={submitForm}>
           <h2>{mode === 'signup' ? 'Create account' : 'Sign in'}</h2>
           <p className="login-form-sub">Governance, risk &amp; compliance workspace</p>
+
+          {mode === 'signup' && (
+            <ProfileFields
+              username={username}
+              jobLevel={jobLevel}
+              onUsername={setUsername}
+              onJobLevel={setJobLevel}
+            />
+          )}
 
           <div className="field">
             <label htmlFor="login-email">Work email</label>

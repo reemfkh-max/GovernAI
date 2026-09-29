@@ -24,11 +24,17 @@ async function request(path, options = {}) {
     try {
       const body = await res.json()
       detail = body.detail || detail
+      // FastAPI validation errors arrive as a list of { msg, ... }.
+      if (Array.isArray(detail)) {
+        detail = detail.map((item) => item.msg).join(' ')
+      }
     } catch {
       // response had no JSON body
     }
 
-    throw new Error(detail)
+    const error = new Error(detail)
+    error.status = res.status
+    throw error
   }
 
   return res.json()
@@ -146,4 +152,25 @@ export function getAuditLog(useCaseId) {
 // confirm frontend and backend agree on who is signed in.
 export function whoami() {
   return request('/auth/me')
+}
+
+/* =========================================================
+   USER PROFILE (username + job level)
+========================================================= */
+
+// Resolves to null when the signed-in user has not set up a profile yet.
+export async function getMyProfile() {
+  try {
+    return await request('/users/me')
+  } catch (err) {
+    if (err.status === 404) return null
+    throw err
+  }
+}
+
+export function saveMyProfile({ username, jobLevel }) {
+  return request('/users/me', {
+    method: 'PUT',
+    body: JSON.stringify({ username, job_level: jobLevel }),
+  })
 }

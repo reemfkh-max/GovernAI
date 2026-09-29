@@ -20,6 +20,7 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "REPORTS_DIR", tmp_path / "reports")
     monkeypatch.setattr(config, "AUDIT_LOG_FILE", tmp_path / "audit_log.jsonl")
+    monkeypatch.setattr(config, "USERS_FILE", tmp_path / "users.json")
     monkeypatch.setattr(config, "POLICIES_FILE", real_data_dir / "policies.yaml")
     monkeypatch.setattr(config, "RISK_RULES_FILE", real_data_dir / "risk_rules.yaml")
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)

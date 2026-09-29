@@ -80,9 +80,15 @@ firebase.json             # Firebase CLI config (Firestore rules + indexes)
 firestore.rules            # deny-all for browser clients; the backend uses the Admin SDK
 ```
 
-Reports and the audit log live in `data/` by default; with Firebase
-configured they are written to the Firestore collections
-`governance_reports` and `audit_log` instead.
+Reports, the audit log and user profiles live in `data/` by default; with
+Firebase configured they are written to the Firestore collections
+`governance_reports`, `audit_log` and `users` instead.
+
+Each user profile (`users/{uid}`) stores the `username` (unique,
+case-insensitive) and `job_level` (`entry`, `junior`, `mid`, `senior`,
+`lead`, `manager`, `director`, `executive`) collected at sign-up, alongside
+the account's email. Users who sign in without a profile (e.g. via Google)
+are asked to complete it before entering the app.
 
 ## Setup
 
@@ -142,6 +148,7 @@ How it fits together:
 | Admin SDK init, Firestore client | `app/firebase.py` |
 | Reports in the `governance_reports` collection | `app/reports.py` |
 | Audit entries in the `audit_log` collection | `app/tools/audit_log.py` |
+| User profiles (username, job level) in the `users` collection | `app/users.py` |
 
 Relevant environment variables (all optional, see `.env.example`):
 `FIREBASE_PROJECT_ID`, `FIREBASE_CREDENTIALS_FILE` /
@@ -188,6 +195,8 @@ python main.py
 | POST | `/use-cases/{id}/approve` | Record a human approve/reject decision |
 | GET | `/audit-log?use_case_id=...` | Read the audit trail |
 | GET | `/auth/me` | Identity behind the caller's Firebase ID token |
+| GET | `/users/me` | The signed-in user's profile (404 until set up) |
+| PUT | `/users/me` | Create/update `username` + `job_level` for the signed-in user |
 | GET | `/policies` | List the policy repository |
 | GET | `/risk-rules` | List the risk-scoring rules |
 
